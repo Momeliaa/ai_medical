@@ -1,0 +1,21 @@
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+# 피부암 이미지에 적합한 데이터 증강 설정
+datagen = ImageDataGenerator(
+    rotation_range=15,           # 최대 15도 회전
+    width_shift_range=0.1,       # 좌우로 10% 이동
+    height_shift_range=0.1,      # 위아래로 10% 이동
+    zoom_range=0.1,              # 10% 확대/축소
+    horizontal_flip=True,        # 좌우 뒤집기
+    vertical_flip=True,          # 상하 뒤집기
+    brightness_range=[0.8, 1.2], # 밝기 조정
+    fill_mode='nearest'          # 빈 공간을 가까운 픽셀로 채우기
+)
+
+# 학습 데이터에만 증강 적용
+datagen.fit(X_train)
+
+# 모델 학습 시 데이터 증강 적용
+history = model.fit(datagen.flow(X_train, y_train, batch_size=32),
+                    epochs=10,
+                    validation_data=(X_val, y_val))

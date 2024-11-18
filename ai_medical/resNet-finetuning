@@ -1,0 +1,63 @@
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+import numpy as np
+
+# 가정: images와 labels가 numpy 배열로 준비됨
+# 데이터셋 준비
+num_classes = 2  # 클래스 수 (이진 분류라면 2)
+labels = to_categorical(labels, num_classes)
+X_train, X_val, y_train, y_val = train_test_split(images, labels, test_size=0.2, random_state=42)
+
+# 사전 학습된 ResNet50 모델 불러오기 (상위 분류층 제외)
+resnet_base = ResNet50(weights='imagenet', include_top=False, input_shape=(128, 128, 3))
+
+# 새로운 분류층 추가
+model = Sequential()
+model.add(resnet_base)
+model.add(Flatten())
+model.add(Dense(256, activation='relu'))
+model.add(Dense(num_classes, activation='softmax'))  # 클래스 수에 맞게 조정
+
+# 전이 학습: 사전 학습된 가중치를 고정하여 새로운 분류층만 학습
+for layer in resnet_base.layers:
+    layer.trainable = False
+
+# 모델 컴파일
+model.compile(optimizer=Adam(learning_rate=1e-3),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# 데이터 증강 설정
+datagen = ImageDataGenerator(
+    rotation_range=15,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    zoom_range=0.1,
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
+datagen.fit(X_train)
+
+# 새로운 분류층 학습
+model.fit(datagen.flow(X_train, y_train, batch_size=32),
+          epochs=10,
+          validation_data=(X_val, y_val))
+
+# 파인튜닝: 상위 레이어 일부를 학습 가능하도록 고정 해제
+for layer in resnet_base.layers[-10:]:  # 마지막 10개 레이어만 학습 가능하게 설정
+    layer.trainable = True
+
+# 학습률 조정 후 다시 컴파일
+model.compile(optimizer=Adam(learning_rate=1e-4),  # 학습률 감소
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# 파인튜닝 진행
+model.fit(datagen.flow(X_train, y_train, batch_size=32),
+          epochs=5,  # 적은 에포크로 파인튜닝
+          validation_data=(X_val, y_val))
